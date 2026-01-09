@@ -11,7 +11,7 @@ This document contains everything an AI agent needs to know to work effectively 
 **Tech Stack:**
 - Python 3.11+
 - LangGraph for workflow orchestration
-- Multi-provider LLM support (Claude, OpenAI, Gemini, Groq)
+- Multi-provider LLM support (Claude, OpenAI, Gemini, Groq, Ollama)
 - PyMuPDF, python-docx, openpyxl for document parsing
 - Tesseract for OCR
 - Camelot for table extraction
@@ -312,11 +312,12 @@ GROQ_API_KEY=gsk_...           # Groq (cheap, fast)
 ANTHROPIC_API_KEY=sk-ant-...   # Claude
 OPENAI_API_KEY=sk-...          # OpenAI
 GOOGLE_API_KEY=...             # Gemini
+OLLAMA_BASE_URL=http://localhost:11434  # Ollama (local, free - no API key needed)
 ```
 
 **Optional:**
 ```bash
-DEFAULT_LLM_PROVIDER=groq      # Preferred provider
+DEFAULT_LLM_PROVIDER=ollama    # Preferred provider (ollama for free local models)
 LOG_LEVEL=DEBUG                # Logging verbosity
 ```
 
@@ -324,14 +325,14 @@ LOG_LEVEL=DEBUG                # Logging verbosity
 
 **Automatic (default):**
 - Cost-optimized: picks cheapest model for tier
-- Example: `SIMPLE` → Groq Llama 8B ($0.00005/1k tokens)
+- Example: `FAST` → Ollama gemma3:4b (FREE, local) or Groq Llama 8B ($0.00013/1k tokens)
 
 **Manual override:**
 ```python
 router = ModelRouter(
-    preferred_provider=ModelProvider.GROQ,  # Prefer Groq
-    fallback_enabled=False,                  # Don't fallback to other providers
-    cost_optimization=True,                  # Still optimize within Groq models
+    preferred_provider=ModelProvider.OLLAMA,  # Prefer Ollama (local, free)
+    fallback_enabled=False,                    # Don't fallback to other providers
+    cost_optimization=True,                    # Still optimize within Ollama models
 )
 ```
 
