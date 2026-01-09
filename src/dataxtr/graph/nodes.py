@@ -25,6 +25,10 @@ async def document_loader_node(state: ExtractionState) -> dict[str, Any]:
 
     try:
         content, metadata = await load_document(doc_path, doc_type)
+        print(
+            f"[document_loader_node] set parser for {doc_path} type={doc_type} | "
+            f"content_keys={list(content.keys())} metadata_keys={list(metadata.keys())}"
+        )
 
         return {
             "document_content": content,
@@ -99,6 +103,40 @@ async def extraction_node(
         return {
             "errors": [f"Field group {group_id} not found"],
         }
+
+    # Debug: check parser context before extraction; reapply if missing
+    from pathlib import Path
+    from dataxtr.services.document_parser import DocumentParser
+
+    try:
+        _ = DocumentParser.get_current()
+        parser_present = True
+    except Exception:
+        parser_present = False
+
+    if not parser_present:
+        try:
+            # Reapply parser context using stored doc_path/type
+            parser = DocumentParser(
+                file_path=Path(state["document_path"]),
+                document_type=state["document_type"],
+            )
+            await parser.load()
+            parser.set_current()
+            parser_present = True
+            print(
+                f"[extraction_node] re-set parser context for {state['document_path']}"
+            )
+        except Exception as e:
+            print(
+                f"[extraction_node] failed to re-set parser: {e} | "
+                f"doc_path_type={type(state.get('document_path'))}"
+            )
+
+    print(
+        f"[extraction_node] group={group_id} model_hint={model_hint} parser_present={parser_present} "
+        f"content_keys={list(state.get('document_content', {}).keys())}"
+    )
 
     # Select appropriate model
     router = ModelRouter()
