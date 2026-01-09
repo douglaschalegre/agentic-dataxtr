@@ -145,6 +145,15 @@ class ModelRouter:
                 temperature=0,
             )
 
+        elif config.provider == ModelProvider.OLLAMA:
+            from langchain_ollama import ChatOllama
+
+            return ChatOllama(
+                model=config.model_id,
+                temperature=0,
+                num_predict=config.max_tokens,
+            )
+
         raise ValueError(f"Unknown provider: {config.provider}")
 
     def upgrade_model(self, current_config: ModelConfig) -> ModelConfig:

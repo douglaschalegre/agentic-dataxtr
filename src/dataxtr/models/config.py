@@ -11,6 +11,7 @@ class ModelProvider(str, Enum):
     OPENAI = "openai"
     GOOGLE = "google"
     GROQ = "groq"
+    OLLAMA = "ollama"
 
 
 class ModelTier(str, Enum):
@@ -151,6 +152,17 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
         max_tokens=8192,
         cost_per_1k_input=0.0009,
         cost_per_1k_output=0.0009,
+    ),
+    # Ollama Models (local, free)
+    "ollama-gemma3": ModelConfig(
+        provider=ModelProvider.OLLAMA,
+        model_id="gemma3:4b",
+        tier=ModelTier.FAST,
+        supports_vision=False,
+        supports_tools=True,
+        max_tokens=8192,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
     ),
 }
 
