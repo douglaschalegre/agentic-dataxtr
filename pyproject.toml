@@ -27,6 +27,7 @@ dependencies = [
     "pdf2image>=1.17.0",
     # Table Extraction
     "camelot-py>=0.11.0",
+    "docling>=2.0.0",
     # Data Validation
     "pydantic>=2.5.0",
     # Utilities

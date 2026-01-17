@@ -53,6 +53,7 @@ class ExtractionState(TypedDict):
     document_path: str
     document_type: Literal["pdf", "image", "docx", "xlsx", "csv"]
     schema_fields: list[FieldDefinition]
+    use_chunking: bool  # Enable Docling-based chunking for better table extraction
 
     # Document analysis
     document_content: Annotated[dict, merge_dicts]
@@ -89,12 +90,22 @@ def create_initial_state(
     document_type: Literal["pdf", "image", "docx", "xlsx", "csv"],
     schema_fields: list[FieldDefinition],
     max_iterations: int = 3,
+    use_chunking: bool = True,  # Default to True for better table extraction
 ) -> ExtractionState:
-    """Create initial state for a new extraction workflow."""
+    """Create initial state for a new extraction workflow.
+
+    Args:
+        document_path: Path to the document to extract from
+        document_type: Type of document (pdf, image, docx, xlsx, csv)
+        schema_fields: List of fields to extract
+        max_iterations: Maximum extraction iterations
+        use_chunking: Enable Docling-based chunking (recommended for PDFs with tables)
+    """
     return ExtractionState(
         document_path=document_path,
         document_type=document_type,
         schema_fields=schema_fields,
+        use_chunking=use_chunking,
         document_content={},
         document_metadata={},
         field_groups=[],

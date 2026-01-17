@@ -13,6 +13,8 @@ from docx import Document as DocxDocument
 from openpyxl import load_workbook
 from PIL import Image
 
+from dataxtr.schemas.chunks import ChunkedDocument
+
 # Context variable to store current parser instance
 _current_parser: ContextVar[Optional["DocumentParser"]] = ContextVar(
     "current_parser", default=None
@@ -45,12 +47,14 @@ class DocumentParser:
 
     file_path: Path
     document_type: Literal["pdf", "image", "docx", "xlsx", "csv"]
+    use_chunking: bool = False  # Enable Docling-based chunking
 
     # Parsed content
     _pages: list[str] = field(default_factory=list)
     _sections: list[Section] = field(default_factory=list)
     _images: dict[int, list[bytes]] = field(default_factory=dict)
     _tables: dict[int, list[dict]] = field(default_factory=dict)
+    _chunked_document: Optional[ChunkedDocument] = None
 
     # Metadata
     page_count: int = 0
@@ -75,6 +79,21 @@ class DocumentParser:
         Returns:
             Tuple of (content dict, metadata dict)
         """
+        # If chunking is enabled, use DocumentChunker
+        if self.use_chunking:
+            from dataxtr.services.document_chunker import DocumentChunker
+
+            chunker = DocumentChunker()
+            self._chunked_document = await chunker.chunk_document(
+                self.file_path, self.document_type
+            )
+
+            # Update metadata based on chunks
+            self.has_tables = len(self._chunked_document.get_table_chunks()) > 0
+            self.has_images = len(self._chunked_document.get_image_chunks()) > 0
+            self.page_count = self._chunked_document.total_pages or 1
+
+        # Regular loading
         if self.document_type == "pdf":
             return await self._load_pdf()
         elif self.document_type == "image":
@@ -128,11 +147,31 @@ class DocumentParser:
             ],
         }
 
+        # Add chunk information if chunking is enabled
+        if self.use_chunking and self._chunked_document:
+            content["chunks"] = [
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "type": chunk.chunk_type.value,
+                    "content": chunk.content,
+                    "page": chunk.page_number,
+                    "metadata": chunk.metadata,
+                }
+                for chunk in self._chunked_document.chunks
+            ]
+            content["chunk_summary"] = {
+                "total": len(self._chunked_document.chunks),
+                "tables": len(self._chunked_document.get_table_chunks()),
+                "images": len(self._chunked_document.get_image_chunks()),
+                "text": len(self._chunked_document.get_text_chunks()),
+            }
+
         metadata = {
             "page_count": self.page_count,
             "has_tables": self.has_tables,
             "has_images": self.has_images,
             "file_size": self.file_path.stat().st_size,
+            "chunking_enabled": self.use_chunking,
         }
 
         return content, metadata
@@ -378,17 +417,52 @@ class DocumentParser:
         """Get images from a specific page."""
         return self._images.get(page_number - 1, [])
 
+    def get_chunked_document(self) -> Optional[ChunkedDocument]:
+        """Get the chunked document if chunking is enabled."""
+        return self._chunked_document
+
+    def has_chunks(self) -> bool:
+        """Check if document has been chunked."""
+        return self._chunked_document is not None
+
+    async def get_table_chunks(self) -> list[dict]:
+        """Get all table chunks from the document."""
+        if not self._chunked_document:
+            return []
+
+        table_chunks = self._chunked_document.get_table_chunks()
+        return [
+            {
+                "chunk_id": chunk.chunk_id,
+                "content": chunk.content,
+                "page": chunk.page_number,
+                "metadata": chunk.metadata,
+            }
+            for chunk in table_chunks
+        ]
+
 
 async def load_document(
-    file_path: str, document_type: Literal["pdf", "image", "docx", "xlsx", "csv"]
+    file_path: str,
+    document_type: Literal["pdf", "image", "docx", "xlsx", "csv"],
+    use_chunking: bool = False,
 ) -> tuple[dict, dict]:
     """Load a document and return content and metadata.
 
     Also sets the parser as current context for tools to access.
+
+    Args:
+        file_path: Path to the document file
+        document_type: Type of document (pdf, image, docx, xlsx, csv)
+        use_chunking: Enable Docling-based semantic chunking (recommended for PDFs with tables)
+
+    Returns:
+        Tuple of (content dict, metadata dict)
     """
     parser = DocumentParser(
         file_path=Path(file_path),
         document_type=document_type,
+        use_chunking=use_chunking,
     )
 
     content, metadata = await parser.load()

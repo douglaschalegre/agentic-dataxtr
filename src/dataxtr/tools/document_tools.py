@@ -161,13 +161,46 @@ async def get_document_structure() -> dict:
     """
     parser = DocumentParser.get_current()
 
-    return {
+    structure = {
         "page_count": parser.page_count,
         "sections": await parser.get_sections(),
         "has_tables": parser.has_tables,
         "has_images": parser.has_images,
         "document_type": parser.document_type,
     }
+
+    # Add chunk information if available
+    if parser.has_chunks():
+        chunked_doc = parser.get_chunked_document()
+        if chunked_doc:
+            structure["chunks"] = {
+                "total": len(chunked_doc.chunks),
+                "tables": len(chunked_doc.get_table_chunks()),
+                "images": len(chunked_doc.get_image_chunks()),
+                "text": len(chunked_doc.get_text_chunks()),
+            }
+
+    return structure
+
+
+@tool
+async def get_table_chunks() -> list[dict]:
+    """Get all tables from the document as structured chunks.
+
+    This is preferred over extract_table when the document has been processed
+    with chunking enabled. It provides better table structure recognition.
+
+    Returns:
+        List of table chunks with structured data
+    """
+    parser = DocumentParser.get_current()
+
+    # If chunking is enabled, use chunks
+    if parser.has_chunks():
+        return await parser.get_table_chunks()
+
+    # Fallback to regular table extraction
+    return {"message": "Chunking not enabled. Use extract_table instead."}
 
 
 # List of all tools for agent binding
@@ -177,4 +210,5 @@ DOCUMENT_TOOLS = [
     extract_table,
     search_document,
     get_document_structure,
+    get_table_chunks,
 ]

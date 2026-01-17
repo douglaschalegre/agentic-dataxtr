@@ -22,11 +22,12 @@ async def document_loader_node(state: ExtractionState) -> dict[str, Any]:
     """
     doc_path = state["document_path"]
     doc_type = state["document_type"]
+    use_chunking = state.get("use_chunking", False)
 
     try:
-        content, metadata = await load_document(doc_path, doc_type)
+        content, metadata = await load_document(doc_path, doc_type, use_chunking=use_chunking)
         print(
-            f"[document_loader_node] set parser for {doc_path} type={doc_type} | "
+            f"[document_loader_node] set parser for {doc_path} type={doc_type} chunking={use_chunking} | "
             f"content_keys={list(content.keys())} metadata_keys={list(metadata.keys())}"
         )
 
