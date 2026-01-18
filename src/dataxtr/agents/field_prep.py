@@ -17,7 +17,8 @@ from dataxtr.schemas.fields import (
 class FieldGroupingOutput(BaseModel):
     """Structured output for field grouping."""
 
-    groups: list[FieldGroup] = Field(description="List of field groups")
+    # Some providers return only field names (strings) here; the agent normalizes later.
+    groups: list[dict[str, Any]] = Field(description="List of field groups")
     reasoning: str = Field(description="Explanation of grouping decisions")
 
 
@@ -108,7 +109,64 @@ Be efficient - group related fields together to minimize API calls."""
             prompt.format(input=json.dumps(input_context, indent=2))
         )
 
-        return result.groups
+        # Gemini via Antigravity may return only field names (strings) instead of full
+        # FieldDefinition objects. Fall back to mapping those names back onto the
+        # provided schema.
+        if isinstance(result, FieldGroupingOutput):
+            output = result
+        elif isinstance(result, dict):
+            output = FieldGroupingOutput.model_validate(result)
+        else:
+            output = FieldGroupingOutput.model_validate(result)
+
+        schema_by_name = {f.name: f for f in schema_fields}
+        normalized_groups: list[FieldGroup] = []
+        for g in output.groups:
+            group_id = str(g.get("group_id", "default"))
+            group_name = str(g.get("group_name", group_id))
+            extraction_strategy = g.get("extraction_strategy", ExtractionComplexity.COMPLEX)
+            context_hint = str(g.get("context_hint", ""))
+
+            raw_fields = g.get("fields", [])
+            fields: list[FieldDefinition] = []
+            for item in raw_fields:
+                if isinstance(item, FieldDefinition):
+                    fields.append(item)
+                elif isinstance(item, str):
+                    if item in schema_by_name:
+                        fields.append(schema_by_name[item])
+                elif isinstance(item, dict) and "name" in item:
+                    name = str(item.get("name"))
+                    if name in schema_by_name:
+                        fields.append(schema_by_name[name])
+                    else:
+                        fields.append(FieldDefinition.model_validate(item))
+                else:
+                    fields.append(FieldDefinition.model_validate(item))
+
+            deps_any: Any = g.get("dependencies", [])
+            deps: list[str]
+            if deps_any is None:
+                deps = []
+            elif isinstance(deps_any, str):
+                deps = [deps_any]
+            elif isinstance(deps_any, list):
+                deps = [str(d) for d in deps_any]
+            else:
+                deps = [str(deps_any)]
+
+            normalized_groups.append(
+                FieldGroup(
+                    group_id=group_id,
+                    group_name=group_name,
+                    fields=fields,
+                    extraction_strategy=extraction_strategy,
+                    context_hint=context_hint,
+                    dependencies=deps,
+                )
+            )
+
+        return normalized_groups
 
     def _create_default_grouping(self, schema_fields: list[FieldDefinition]) -> list[FieldGroup]:
         """Create a default grouping if LLM fails.

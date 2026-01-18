@@ -75,6 +75,9 @@ class ExtractionState(TypedDict):
     max_iterations: int
     retry_queue: list[tuple[str, Optional[str]]]  # (group_id, model_hint)
 
+    # Optional router override
+    preferred_model: Optional[str]
+
     # Messages for agent communication
     messages: Annotated[list, add_messages]
 
@@ -89,6 +92,7 @@ def create_initial_state(
     document_type: Literal["pdf", "image", "docx", "xlsx", "csv"],
     schema_fields: list[FieldDefinition],
     max_iterations: int = 3,
+    preferred_model: Optional[str] = None,
 ) -> ExtractionState:
     """Create initial state for a new extraction workflow."""
     return ExtractionState(
@@ -106,6 +110,7 @@ def create_initial_state(
         current_iteration=0,
         max_iterations=max_iterations,
         retry_queue=[],
+        preferred_model=preferred_model,
         messages=[],
         final_results=None,
         workflow_status="pending",

@@ -51,7 +51,12 @@ async def field_prep_node(state: ExtractionState) -> dict[str, Any]:
     Returns:
         State updates with field groups and pending queue
     """
-    router = ModelRouter()
+    from dataxtr.models.config import ModelProvider
+
+    router = ModelRouter(
+        preferred_provider=ModelProvider.ANTIGRAVITY,
+        preferred_model="antigravity-gemini-3-flash",
+    )
 
     # Use a standard model for field preparation
     model_config = router.select_model(ExtractionComplexity.COMPLEX)
@@ -124,9 +129,7 @@ async def extraction_node(
             await parser.load()
             parser.set_current()
             parser_present = True
-            print(
-                f"[extraction_node] re-set parser context for {state['document_path']}"
-            )
+            print(f"[extraction_node] re-set parser context for {state['document_path']}")
         except Exception as e:
             print(
                 f"[extraction_node] failed to re-set parser: {e} | "
@@ -139,7 +142,12 @@ async def extraction_node(
     )
 
     # Select appropriate model
-    router = ModelRouter()
+    from dataxtr.models.config import ModelProvider
+
+    router = ModelRouter(
+        preferred_provider=ModelProvider.ANTIGRAVITY,
+        preferred_model="antigravity-gemini-3-pro",
+    )
     model, model_config = router.get_model_for_task(
         field_group.extraction_strategy,
         model_hint=model_hint,
@@ -183,7 +191,12 @@ async def quality_node(state: ExtractionState) -> dict[str, Any]:
     Returns:
         State updates with quality reports and retry queue
     """
-    router = ModelRouter()
+    from dataxtr.models.config import ModelProvider
+
+    router = ModelRouter(
+        preferred_provider=ModelProvider.ANTIGRAVITY,
+        preferred_model="antigravity-gemini-3-pro",
+    )
 
     # Use a powerful model for quality assessment
     model_config = router.select_model(ExtractionComplexity.COMPLEX)
