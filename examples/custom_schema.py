@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from dataxtr.graph.builder import build_extraction_graph, build_simple_extraction_graph
+from dataxtr.graph.builder import build_simple_extraction_graph
 from dataxtr.graph.state import create_initial_state
 from dataxtr.schemas.fields import FieldDefinition, FieldType
 

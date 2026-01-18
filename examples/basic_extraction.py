@@ -125,6 +125,7 @@ async def extract_invoice(pdf_path: str) -> dict:
         document_type="pdf",
         schema_fields=schema,
         max_iterations=3,
+        preferred_model="antigravity-gemini-2.5-pro",
     )
 
     # Build and run the graph
@@ -176,9 +177,9 @@ async def main():
         for r in extraction_results:
             print(
                 f"- group {getattr(r, 'group_id', '?')} model={getattr(r, 'model_used', '')} "
-                f"retry={getattr(r, 'retry_count', 0)} count={len(getattr(r, 'results', []) )}"
+                f"retry={getattr(r, 'retry_count', 0)} count={len(getattr(r, 'results', []))}"
             )
-            for res in getattr(r, 'results', []):
+            for res in getattr(r, "results", []):
                 print(
                     f"    field={getattr(res, 'field_name', '')} value={getattr(res, 'extracted_value', None)} "
                     f"conf={getattr(res, 'confidence', None)} src={getattr(res, 'source_location', '')}"
@@ -217,7 +218,6 @@ async def main():
     print("\n" + "=" * 50)
     print("JSON Output:")
     print(json.dumps(results, indent=2, default=str))
-
 
 
 if __name__ == "__main__":
