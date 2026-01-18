@@ -21,6 +21,7 @@ class ModelRouter:
         preferred_provider: Optional[ModelProvider] = None,
         fallback_enabled: bool = True,
         cost_optimization: bool = True,
+        preferred_model: Optional[str] = None,
     ):
         """Initialize the model router.
 
@@ -32,6 +33,7 @@ class ModelRouter:
         self.preferred_provider = preferred_provider
         self.fallback_enabled = fallback_enabled
         self.cost_optimization = cost_optimization
+        self.preferred_model = preferred_model
 
     def select_model(
         self,
@@ -40,6 +42,17 @@ class ModelRouter:
         requires_tools: bool = True,
         upgrade: bool = False,
     ) -> ModelConfig:
+        if self.preferred_model:
+            if self.preferred_model not in MODEL_REGISTRY:
+                raise ValueError(
+                    f"Forced model '{self.preferred_model}' not found in MODEL_REGISTRY"
+                )
+            forced = MODEL_REGISTRY[self.preferred_model]
+            if requires_vision and not forced.supports_vision:
+                raise ValueError(f"Forced model '{self.preferred_model}' does not support vision")
+            if requires_tools and not forced.supports_tools:
+                raise ValueError(f"Forced model '{self.preferred_model}' does not support tools")
+            return forced
         """Select appropriate model based on requirements.
 
         Args:
@@ -146,13 +159,35 @@ class ModelRouter:
             )
 
         elif config.provider == ModelProvider.OLLAMA:
+            import os
+
             from langchain_ollama import ChatOllama
 
-            return ChatOllama(
-                model=config.model_id,
-                temperature=0,
-                num_predict=config.max_tokens,
-            )
+            base_url = os.getenv("OLLAMA_BASE_URL")
+
+            kwargs = {
+                "model": config.model_id,
+                "temperature": 0,
+                "num_predict": config.max_tokens,
+            }
+            if base_url:
+                kwargs["base_url"] = base_url
+
+            return ChatOllama(**kwargs)
+
+        elif config.provider == ModelProvider.ANTIGRAVITY:
+            from dataxtr.models.antigravity_client import ChatAntigravity
+
+            kwargs = {
+                "max_tokens": config.max_tokens,
+                "temperature": 0,
+            }
+            # Add thinking budget for thinking models
+            if "thinking" in config.model_id:
+                kwargs["thinking_budget"] = 32768
+
+            # Model comes from the registry entry.
+            return ChatAntigravity(model=config.model_id, **kwargs)
 
         raise ValueError(f"Unknown provider: {config.provider}")
 
@@ -207,13 +242,16 @@ class ModelRouter:
         Returns:
             Tuple of (model instance, config)
         """
-        upgrade = model_hint == "upgrade"
-
-        # Check if hint is a specific model name
-        if model_hint and model_hint in MODEL_REGISTRY:
-            config = MODEL_REGISTRY[model_hint]
+        if self.preferred_model:
+            config = self.select_model(complexity)
         else:
-            config = self.select_model(complexity, upgrade=upgrade)
+            upgrade = model_hint == "upgrade"
+
+            # Check if hint is a specific model name
+            if model_hint and model_hint in MODEL_REGISTRY:
+                config = MODEL_REGISTRY[model_hint]
+            else:
+                config = self.select_model(complexity, upgrade=upgrade)
 
         model = self.get_chat_model(config)
         return model, config

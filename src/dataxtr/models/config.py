@@ -12,6 +12,7 @@ class ModelProvider(str, Enum):
     GOOGLE = "google"
     GROQ = "groq"
     OLLAMA = "ollama"
+    ANTIGRAVITY = "antigravity"  # Free access via Google OAuth
 
 
 class ModelTier(str, Enum):
@@ -154,13 +155,75 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
         cost_per_1k_output=0.0009,
     ),
     # Ollama Models (local, free)
-    "ollama-gemma3": ModelConfig(
+    "ollama-gpt-oss20b": ModelConfig(
         provider=ModelProvider.OLLAMA,
-        model_id="gemma3:4b",
-        tier=ModelTier.FAST,
+        model_id="gpt-oss:20b",
+        tier=ModelTier.STANDARD,
         supports_vision=False,
         supports_tools=True,
         max_tokens=8192,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    # Antigravity Models (free via Google OAuth)
+    # Requires: opencode-antigravity-auth plugin authenticated
+    "antigravity-claude-sonnet-4-5": ModelConfig(
+        provider=ModelProvider.ANTIGRAVITY,
+        model_id="claude-sonnet-4-5",
+        tier=ModelTier.STANDARD,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=64000,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    "antigravity-claude-sonnet-4-5-thinking": ModelConfig(
+        provider=ModelProvider.ANTIGRAVITY,
+        model_id="claude-sonnet-4-5-thinking",
+        tier=ModelTier.POWERFUL,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=64000,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    "antigravity-claude-opus-4-5-thinking": ModelConfig(
+        provider=ModelProvider.ANTIGRAVITY,
+        model_id="claude-opus-4-5-thinking",
+        tier=ModelTier.POWERFUL,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=64000,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    "antigravity-gemini-2.5-pro": ModelConfig(
+        provider=ModelProvider.ANTIGRAVITY,
+        model_id="gemini-2.5-pro",
+        tier=ModelTier.STANDARD,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=65535,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    "antigravity-gemini-3-pro": ModelConfig(
+        provider=ModelProvider.ANTIGRAVITY,
+        model_id="gemini-3-pro-high",
+        tier=ModelTier.POWERFUL,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=65535,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    "antigravity-gemini-3-flash": ModelConfig(
+        provider=ModelProvider.ANTIGRAVITY,
+        model_id="gemini-3-flash",
+        tier=ModelTier.STANDARD,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=65536,
         cost_per_1k_input=0.0,
         cost_per_1k_output=0.0,
     ),
