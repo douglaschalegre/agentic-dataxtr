@@ -37,7 +37,7 @@ uv run python examples/basic_extraction.py invoice.pdf
 curl -fsSL https://ollama.com/install.sh | sh
 
 # Pull the model
-ollama pull gemma3:4b
+ollama pull gptoss:20b
 
 # Configure (optional - uses localhost:11434 by default)
 cp .env.example .env
