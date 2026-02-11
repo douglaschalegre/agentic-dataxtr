@@ -24,9 +24,11 @@ class OCRRegionInput(BaseModel):
     """Input for OCR on specific region."""
 
     page_number: int = Field(description="Page number (1-indexed)")
-    bbox: Optional[tuple[float, float, float, float]] = Field(
+    bbox: Optional[list[float]] = Field(
         default=None,
-        description="Bounding box as (x1, y1, x2, y2) in normalized coords 0-1",
+        min_length=4,
+        max_length=4,
+        description="Bounding box as [x1, y1, x2, y2] in normalized coords 0-1",
     )
 
 
@@ -73,7 +75,7 @@ async def read_document_section(
 
 @tool(args_schema=OCRRegionInput)
 async def ocr_region(
-    page_number: int, bbox: Optional[tuple[float, float, float, float]] = None
+    page_number: int, bbox: Optional[list[float]] = None
 ) -> str:
     """Perform OCR on a specific page or region of the document.
 
@@ -90,7 +92,8 @@ async def ocr_region(
     ocr = OCRService()
 
     image = await parser.get_page_image(page_number)
-    return await ocr.extract_text(image, bbox)
+    bbox_tuple = tuple(bbox) if bbox else None
+    return await ocr.extract_text(image, bbox_tuple)
 
 
 @tool(args_schema=TableExtractionInput)

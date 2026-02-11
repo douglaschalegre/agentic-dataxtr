@@ -77,6 +77,7 @@ class ExtractionState(TypedDict):
 
     # Optional router override
     preferred_model: Optional[str]
+    preferred_provider: Optional[str]
 
     # Messages for agent communication
     messages: Annotated[list, add_messages]
@@ -93,6 +94,7 @@ def create_initial_state(
     schema_fields: list[FieldDefinition],
     max_iterations: int = 3,
     preferred_model: Optional[str] = None,
+    preferred_provider: Optional[str] = None,
 ) -> ExtractionState:
     """Create initial state for a new extraction workflow."""
     return ExtractionState(
@@ -111,6 +113,7 @@ def create_initial_state(
         max_iterations=max_iterations,
         retry_queue=[],
         preferred_model=preferred_model,
+        preferred_provider=preferred_provider,
         messages=[],
         final_results=None,
         workflow_status="pending",

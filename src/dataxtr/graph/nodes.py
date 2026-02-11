@@ -1,14 +1,34 @@
 """LangGraph node implementations."""
 
+import os
 from typing import Any, Literal, Optional
 
 from dataxtr.agents.extraction import ExtractionAgent
 from dataxtr.agents.field_prep import FieldPrepAgent
 from dataxtr.agents.quality import QualityAgent
 from dataxtr.graph.state import ExtractionState
+from dataxtr.models.config import ModelProvider
 from dataxtr.models.router import ModelRouter
 from dataxtr.schemas.fields import ExtractionComplexity
 from dataxtr.services.document_parser import load_document
+
+
+def _resolve_preferred_provider(state: ExtractionState) -> Optional[ModelProvider]:
+    """Resolve preferred provider from state first, then environment."""
+
+    raw_provider = state.get("preferred_provider") or os.getenv("DEFAULT_LLM_PROVIDER")
+    if not raw_provider:
+        return None
+
+    normalized = raw_provider.strip().lower().replace("-", "_")
+    try:
+        return ModelProvider(normalized)
+    except ValueError:
+        print(
+            "[model_router] unknown preferred provider "
+            f"{raw_provider!r}; falling back to auto selection"
+        )
+        return None
 
 
 async def document_loader_node(state: ExtractionState) -> dict[str, Any]:
@@ -51,18 +71,34 @@ async def field_prep_node(state: ExtractionState) -> dict[str, Any]:
     Returns:
         State updates with field groups and pending queue
     """
-    from dataxtr.models.config import ModelProvider
-
+    preferred_model = state.get("preferred_model")
+    preferred_provider = _resolve_preferred_provider(state)
     router = ModelRouter(
-        preferred_provider=ModelProvider.ANTIGRAVITY,
-        preferred_model="antigravity-gemini-3-flash",
+        preferred_provider=preferred_provider,
+        preferred_model=preferred_model,
+    )
+
+    # Debug: confirm preferred_model propagation + selection
+    print(
+        f"[field_prep_node] preferred_provider={preferred_provider} "
+        f"preferred_model={preferred_model!r}"
     )
 
     # Use a standard model for field preparation
     model_config = router.select_model(ExtractionComplexity.COMPLEX)
+    print(
+        "[field_prep_node] selected="
+        f"{model_config.provider.value}:{model_config.model_id} tier={model_config.tier.value}"
+    )
     model = router.get_chat_model(model_config)
+    structured_output_method = (
+        "json_mode" if model_config.provider == ModelProvider.OPENAI_CODEX else None
+    )
 
-    agent = FieldPrepAgent(model=model)
+    agent = FieldPrepAgent(
+        model=model,
+        structured_output_method=structured_output_method,
+    )
 
     try:
         field_groups = await agent.execute(
@@ -142,20 +178,29 @@ async def extraction_node(
     )
 
     # Select appropriate model
-    from dataxtr.models.config import ModelProvider
-
+    preferred_model = state.get("preferred_model")
+    preferred_provider = _resolve_preferred_provider(state)
     router = ModelRouter(
-        preferred_provider=ModelProvider.ANTIGRAVITY,
-        preferred_model="antigravity-gemini-3-pro",
+        preferred_provider=preferred_provider,
+        preferred_model=preferred_model,
     )
     model, model_config = router.get_model_for_task(
         field_group.extraction_strategy,
         model_hint=model_hint,
     )
+    print(
+        f"[extraction_node] preferred_provider={preferred_provider} "
+        f"preferred_model={preferred_model!r} selected="
+        f"{model_config.provider.value}:{model_config.model_id} tier={model_config.tier.value} "
+        f"strategy={field_group.extraction_strategy}"
+    )
 
     agent = ExtractionAgent(
         model=model,
         model_name=model_config.model_id,
+        structured_output_method=(
+            "json_mode" if model_config.provider == ModelProvider.OPENAI_CODEX else None
+        ),
     )
 
     try:
@@ -191,18 +236,29 @@ async def quality_node(state: ExtractionState) -> dict[str, Any]:
     Returns:
         State updates with quality reports and retry queue
     """
-    from dataxtr.models.config import ModelProvider
-
+    preferred_model = state.get("preferred_model")
+    preferred_provider = _resolve_preferred_provider(state)
     router = ModelRouter(
-        preferred_provider=ModelProvider.ANTIGRAVITY,
-        preferred_model="antigravity-gemini-3-pro",
+        preferred_provider=preferred_provider,
+        preferred_model=preferred_model,
     )
 
     # Use a powerful model for quality assessment
     model_config = router.select_model(ExtractionComplexity.COMPLEX)
+    print(
+        f"[quality_node] preferred_provider={preferred_provider} "
+        f"preferred_model={preferred_model!r} selected="
+        f"{model_config.provider.value}:{model_config.model_id} tier={model_config.tier.value}"
+    )
     model = router.get_chat_model(model_config)
+    structured_output_method = (
+        "json_mode" if model_config.provider == ModelProvider.OPENAI_CODEX else None
+    )
 
-    agent = QualityAgent(model=model)
+    agent = QualityAgent(
+        model=model,
+        structured_output_method=structured_output_method,
+    )
 
     new_reports = []
     retry_queue = []
@@ -243,12 +299,17 @@ async def quality_node(state: ExtractionState) -> dict[str, Any]:
                 retry_queue.append((result.group_id, model_hint))
 
         except Exception as e:
+            from dataxtr.schemas.quality import QualityReport
+
             new_reports.append(
-                {
-                    "group_id": result.group_id,
-                    "passed": False,
-                    "errors": [str(e)],
-                }
+                QualityReport(
+                    group_id=result.group_id,
+                    passed=False,
+                    overall_confidence=0.0,
+                    issues=[],
+                    recommendation="manual_review",
+                    reasoning=str(e),
+                )
             )
 
     return {
