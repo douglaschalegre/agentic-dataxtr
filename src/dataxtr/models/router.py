@@ -1,6 +1,6 @@
 """Model routing for task-based model selection."""
 
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.language_models import BaseChatModel
 
@@ -140,6 +140,37 @@ class ModelRouter:
                 temperature=0,
             )
 
+        elif config.provider == ModelProvider.OPENAI_CODEX:
+            import os
+
+            from langchain_openai import ChatOpenAI
+
+            from dataxtr.models.codex_auth import resolve_codex_auth
+
+            auth = resolve_codex_auth()
+            base_url = os.getenv("OPENAI_CODEX_BASE_URL", "https://chatgpt.com/backend-api/codex")
+            default_instructions = os.getenv(
+                "OPENAI_CODEX_INSTRUCTIONS",
+                "You are a precise data extraction assistant.",
+            )
+
+            kwargs: dict[str, Any] = {
+                "model": config.model_id,
+                "temperature": 0,
+                "streaming": True,
+                "api_key": auth.access_token,
+                "base_url": base_url,
+                "use_responses_api": True,
+                "extra_body": {
+                    "instructions": default_instructions,
+                    "store": False,
+                },
+            }
+            if auth.account_id:
+                kwargs["default_headers"] = {"ChatGPT-Account-Id": auth.account_id}
+
+            return ChatOpenAI(**kwargs)
+
         elif config.provider == ModelProvider.GOOGLE:
             from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -165,7 +196,7 @@ class ModelRouter:
 
             base_url = os.getenv("OLLAMA_BASE_URL")
 
-            kwargs = {
+            kwargs: dict[str, Any] = {
                 "model": config.model_id,
                 "temperature": 0,
                 "num_predict": config.max_tokens,
@@ -178,7 +209,7 @@ class ModelRouter:
         elif config.provider == ModelProvider.ANTIGRAVITY:
             from dataxtr.models.antigravity_client import ChatAntigravity
 
-            kwargs = {
+            kwargs: dict[str, Any] = {
                 "max_tokens": config.max_tokens,
                 "temperature": 0,
             }

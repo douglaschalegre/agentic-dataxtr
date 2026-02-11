@@ -9,6 +9,7 @@ class ModelProvider(str, Enum):
 
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
+    OPENAI_CODEX = "openai_codex"
     GOOGLE = "google"
     GROQ = "groq"
     OLLAMA = "ollama"
@@ -101,6 +102,37 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
         max_tokens=4096,
         cost_per_1k_input=0.005,
         cost_per_1k_output=0.015,
+    ),
+    # OpenAI Codex (ChatGPT subscription via OAuth token)
+    "openai-codex-gpt-5.3-codex-mini": ModelConfig(
+        provider=ModelProvider.OPENAI_CODEX,
+        model_id="gpt-5.3-codex-mini",
+        tier=ModelTier.FAST,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=32768,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    "openai-codex-gpt-5.3-codex": ModelConfig(
+        provider=ModelProvider.OPENAI_CODEX,
+        model_id="gpt-5.3-codex",
+        tier=ModelTier.STANDARD,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=32768,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
+    ),
+    "openai-codex-gpt-5.3-codex-power": ModelConfig(
+        provider=ModelProvider.OPENAI_CODEX,
+        model_id="gpt-5.3-codex",
+        tier=ModelTier.POWERFUL,
+        supports_vision=True,
+        supports_tools=True,
+        max_tokens=65536,
+        cost_per_1k_input=0.0,
+        cost_per_1k_output=0.0,
     ),
     # Google Models
     "gemini-flash": ModelConfig(
