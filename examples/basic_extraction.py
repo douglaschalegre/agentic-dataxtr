@@ -119,13 +119,13 @@ async def extract_invoice(pdf_path: str) -> dict:
         ),
     ]
 
-    # Create initial state
     initial_state = create_initial_state(
         document_path=pdf_path,
         document_type="pdf",
         schema_fields=schema,
         max_iterations=3,
-        preferred_model="antigravity-gemini-2.5-pro",
+        preferred_provider="openai_codex",
+        preferred_model="openai-codex-gpt-5.3-codex",
     )
 
     # Build and run the graph
