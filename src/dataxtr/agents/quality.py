@@ -55,13 +55,17 @@ Provide your assessment as a QualityReport with:
   - "manual_review": Cannot be resolved automatically
 - reasoning: Your analysis summary"""
 
-    def __init__(self, model: BaseChatModel):
+    def __init__(self, model: BaseChatModel, structured_output_method: str | None = None):
         """Initialize the quality agent.
 
         Args:
             model: Chat model for validation
         """
-        super().__init__(model=model, system_prompt=self.SYSTEM_PROMPT)
+        super().__init__(
+            model=model,
+            system_prompt=self.SYSTEM_PROMPT,
+            structured_output_method=structured_output_method,
+        )
 
     async def execute(
         self,
@@ -113,11 +117,22 @@ Provide your assessment as a QualityReport with:
         prompt = self._build_prompt()
 
         # Use structured output for reliable parsing
-        structured_model = self.model.with_structured_output(QualityReport)
+        structured_model = self._with_structured_output(QualityReport)
 
         result = await structured_model.ainvoke(
-            prompt.format(input=json.dumps(validation_context, indent=2))
+            prompt.format(
+                input=(
+                    f"{json.dumps(validation_context, indent=2)}\n\n"
+                    "Return output as valid JSON."
+                )
+            )
         )
+        result = self._normalize_structured_result(result)
+
+        if isinstance(result, dict):
+            result = QualityReport.model_validate(result)
+        elif not isinstance(result, QualityReport):
+            result = QualityReport.model_validate(result)
 
         # Ensure group_id is set
         result.group_id = extraction_result.group_id

@@ -51,6 +51,7 @@ Use tools efficiently - search first, then read specific sections."""
         model: BaseChatModel,
         tools: Optional[list[BaseTool]] = None,
         model_name: str = "unknown",
+        structured_output_method: str | None = None,
     ):
         """Initialize the extraction agent.
 
@@ -63,6 +64,7 @@ Use tools efficiently - search first, then read specific sections."""
             model=model,
             tools=tools or DOCUMENT_TOOLS,
             system_prompt=self.SYSTEM_PROMPT,
+            structured_output_method=structured_output_method,
         )
         self.model_name = model_name
 
@@ -201,9 +203,9 @@ After gathering information, provide the extracted values."""
             List of extraction results
         """
         # Use a structured output call to parse the response
-        structured_model = self.model.with_structured_output(FieldExtractionOutput)
+        structured_model = self._with_structured_output(FieldExtractionOutput)
 
-        parse_prompt = f"""Based on your extraction work, provide the final structured results.
+        parse_prompt = f"""Based on your extraction work, provide the final structured results in JSON.
 
 Fields to report:
 {json.dumps([f.model_dump() for f in field_group.fields], indent=2)}
@@ -217,7 +219,19 @@ For each field, provide:
 - confidence: your confidence score 0.0-1.0
 - source_location: where you found it (e.g., "Page 1, Header section")
 - extraction_method: "text", "ocr", "table", or "vision"
-- raw_text: the original text snippet containing the value"""
+- raw_text: the original text snippet containing the value
+
+Return output as valid JSON."""
 
         result = await structured_model.ainvoke(parse_prompt)
-        return result.extractions
+        result = self._normalize_structured_result(result)
+        if isinstance(result, FieldExtractionOutput):
+            return result.extractions
+        if isinstance(result, dict):
+            if "extractions" not in result and "results" in result:
+                result["extractions"] = result.get("results", [])
+            return FieldExtractionOutput.model_validate(result).extractions
+        payload = result.model_dump() if hasattr(result, "model_dump") else dict(result)
+        if "extractions" not in payload and "results" in payload:
+            payload["extractions"] = payload.get("results", [])
+        return FieldExtractionOutput.model_validate(payload).extractions

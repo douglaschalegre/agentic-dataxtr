@@ -47,13 +47,17 @@ Output field groups with:
 
 Be efficient - group related fields together to minimize API calls."""
 
-    def __init__(self, model: BaseChatModel):
+    def __init__(self, model: BaseChatModel, structured_output_method: str | None = None):
         """Initialize the field preparation agent.
 
         Args:
             model: Chat model for analysis
         """
-        super().__init__(model=model, system_prompt=self.SYSTEM_PROMPT)
+        super().__init__(
+            model=model,
+            system_prompt=self.SYSTEM_PROMPT,
+            structured_output_method=structured_output_method,
+        )
 
     async def execute(
         self,
@@ -92,7 +96,7 @@ Be efficient - group related fields together to minimize API calls."""
         prompt = self._build_prompt()
 
         # Use structured output for reliable parsing
-        structured_model = self.model.with_structured_output(FieldGroupingOutput)
+        structured_model = self._with_structured_output(FieldGroupingOutput)
 
         # Build input context
         input_context = {
@@ -106,18 +110,32 @@ Be efficient - group related fields together to minimize API calls."""
         }
 
         result = await structured_model.ainvoke(
-            prompt.format(input=json.dumps(input_context, indent=2))
+            prompt.format(
+                input=(
+                    f"{json.dumps(input_context, indent=2)}\n\n"
+                    "Return output as valid JSON."
+                )
+            )
         )
+        result = self._normalize_structured_result(result)
 
         # Gemini via Antigravity may return only field names (strings) instead of full
         # FieldDefinition objects. Fall back to mapping those names back onto the
         # provided schema.
         if isinstance(result, FieldGroupingOutput):
             output = result
-        elif isinstance(result, dict):
-            output = FieldGroupingOutput.model_validate(result)
         else:
-            output = FieldGroupingOutput.model_validate(result)
+            if isinstance(result, dict):
+                payload = result
+            elif hasattr(result, "model_dump"):
+                payload = result.model_dump()
+            else:
+                payload = dict(result)
+            if "groups" not in payload and "field_groups" in payload:
+                payload["groups"] = payload.get("field_groups", [])
+            if "reasoning" not in payload:
+                payload["reasoning"] = ""
+            output = FieldGroupingOutput.model_validate(payload)
 
         schema_by_name = {f.name: f for f in schema_fields}
         normalized_groups: list[FieldGroup] = []
