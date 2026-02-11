@@ -87,15 +87,11 @@ class TableExtractor:
                     pages = ",".join(str(p) for p in page_numbers)
 
                 # Try lattice (bordered tables) first
-                camelot_tables = camelot.read_pdf(
-                    str(pdf_path), pages=pages, flavor="lattice"
-                )
+                camelot_tables = camelot.read_pdf(str(pdf_path), pages=pages, flavor="lattice")
 
                 if not camelot_tables:
                     # Fallback to stream (borderless tables)
-                    camelot_tables = camelot.read_pdf(
-                        str(pdf_path), pages=pages, flavor="stream"
-                    )
+                    camelot_tables = camelot.read_pdf(str(pdf_path), pages=pages, flavor="stream")
 
                 for ct in camelot_tables:
                     df = ct.df

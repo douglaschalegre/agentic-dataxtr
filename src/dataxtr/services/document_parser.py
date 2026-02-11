@@ -4,7 +4,6 @@ import base64
 import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from io import BytesIO
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -14,9 +13,7 @@ from openpyxl import load_workbook
 from PIL import Image
 
 # Context variable to store current parser instance
-_current_parser: ContextVar[Optional["DocumentParser"]] = ContextVar(
-    "current_parser", default=None
-)
+_current_parser: ContextVar[Optional["DocumentParser"]] = ContextVar("current_parser", default=None)
 
 
 @dataclass
@@ -241,20 +238,53 @@ class DocumentParser:
 
         self.has_tables = True
         sheets_data = {}
+        sheet_tables = []
+        self._pages = []
+        self._sections = []
 
-        for sheet_name in wb.sheetnames:
+        for sheet_index, sheet_name in enumerate(wb.sheetnames):
             sheet = wb[sheet_name]
             rows = []
             for row in sheet.iter_rows(values_only=True):
                 rows.append([str(cell) if cell else "" for cell in row])
             sheets_data[sheet_name] = rows
 
+            non_empty_rows = [r for r in rows if any(cell.strip() for cell in r)]
+            headers = non_empty_rows[0] if non_empty_rows else []
+            data_rows = non_empty_rows[1:] if len(non_empty_rows) > 1 else []
+            table_obj = {
+                "sheet": sheet_name,
+                "headers": headers,
+                "rows": data_rows,
+            }
+            self._tables[sheet_index] = [table_obj]
+            sheet_tables.append(table_obj)
+
+            sheet_text_lines = [f"--- Sheet: {sheet_name} ---"]
+            for row in non_empty_rows:
+                sheet_text_lines.append("\t".join(row))
+            sheet_text = "\n".join(sheet_text_lines)
+            self._pages.append(sheet_text)
+            self._sections.append(
+                Section(
+                    title=sheet_name,
+                    content=sheet_text,
+                    page_number=sheet_index + 1,
+                    level=1,
+                )
+            )
+
         self.page_count = len(wb.sheetnames)
 
         content = {
-            "full_text": "",
+            "full_text": "\n\n".join(self._pages),
             "sheets": sheets_data,
-            "pages": [str(sheets_data)],
+            "tables": sheet_tables,
+            "pages": self._pages,
+            "sections": [
+                {"title": s.title, "content": s.content, "page": s.page_number}
+                for s in self._sections
+            ],
         }
 
         metadata = {
@@ -280,11 +310,21 @@ class DocumentParser:
         self.has_tables = True
         self.page_count = 1
         self._tables[0] = [{"rows": rows}]
+        self._pages = ["\n".join(["\t".join(row) for row in rows])]
+        self._sections = [
+            Section(
+                title="csv",
+                content=self._pages[0],
+                page_number=1,
+                level=1,
+            )
+        ]
 
         content = {
-            "full_text": "\n".join([",".join(row) for row in rows]),
+            "full_text": self._pages[0],
             "tables": [{"headers": rows[0] if rows else [], "rows": rows[1:]}],
-            "pages": [str(rows)],
+            "pages": self._pages,
+            "sections": [{"title": "csv", "content": self._pages[0], "page": 1}],
         }
 
         metadata = {
@@ -324,10 +364,7 @@ class DocumentParser:
 
     async def get_sections(self) -> list[dict]:
         """Get list of document sections."""
-        return [
-            {"title": s.title, "page": s.page_number, "level": s.level}
-            for s in self._sections
-        ]
+        return [{"title": s.title, "page": s.page_number, "level": s.level} for s in self._sections]
 
     async def search(self, query: str) -> list[SearchMatch]:
         """Search document for text matching query."""
@@ -346,9 +383,7 @@ class DocumentParser:
 
         return matches
 
-    async def get_context(
-        self, page: int, position: int, context_chars: int = 200
-    ) -> str:
+    async def get_context(self, page: int, position: int, context_chars: int = 200) -> str:
         """Get text context around a position."""
         if not (1 <= page <= len(self._pages)):
             return ""
@@ -377,6 +412,10 @@ class DocumentParser:
     async def get_images(self, page_number: int) -> list[bytes]:
         """Get images from a specific page."""
         return self._images.get(page_number - 1, [])
+
+    async def get_tables(self, page_number: int) -> list[dict]:
+        """Get extracted tables from a specific page/sheet (1-indexed)."""
+        return self._tables.get(page_number - 1, [])
 
 
 async def load_document(

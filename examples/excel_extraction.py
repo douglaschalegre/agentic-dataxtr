@@ -27,27 +27,21 @@ async def extract_excel(xlsx_path: str) -> dict:
     # TODO: Customize these fields based on your specific Excel structure
     schema = [
         FieldDefinition(
-            name="Função",
-            description="Segundo poço que possua função PO",
+            name="Cabeça - Y",
+            description="Posição Cabeça - Y (m) do M5-M3-P5",
             field_type=FieldType.NUMBER,
             required=True,
         ),
         FieldDefinition(
-            name="posição_cabeça_x",
-            description="Segundo poço que possua função PO",
+            name="Posição Objetivo",
+            description="Nome do maior Posição Objetivo - Y (m)",
             field_type=FieldType.NUMBER,
             required=True,
         ),
         FieldDefinition(
-            name="posição_cabeça_y",
-            description="Segundo poço que possua função PO",
-            field_type=FieldType.NUMBER,
-            required=True,
-        ),
-        FieldDefinition(
-            name="nome",
-            description="Nome do segundo poço que possua função PO",
-            field_type=FieldType.TEXT,
+            name="Nomes dos Poços",
+            description="Nomes de todos os poços com função WAG",
+            field_type=FieldType.LIST,
             required=True,
         ),
     ]
@@ -58,6 +52,8 @@ async def extract_excel(xlsx_path: str) -> dict:
         document_type="xlsx",
         schema_fields=schema,
         max_iterations=3,
+        preferred_provider="openai_codex",
+        preferred_model="openai-codex-gpt-5.3-codex",
     )
 
     # Build and run the graph
@@ -71,12 +67,7 @@ async def main():
     """Run the Excel extraction example."""
     import sys
 
-    if len(sys.argv) < 2:
-        # Default to the example file if no path provided
-        xlsx_path = "examples/Malha Caso 15.xlsx"
-        print(f"No file specified, using default: {xlsx_path}")
-    else:
-        xlsx_path = sys.argv[1]
+    xlsx_path = sys.argv[1]
 
     if not Path(xlsx_path).exists():
         print(f"Error: File not found: {xlsx_path}")

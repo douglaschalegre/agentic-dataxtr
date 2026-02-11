@@ -36,24 +36,18 @@ class TableExtractionInput(BaseModel):
     """Input for extracting tables."""
 
     page_number: int = Field(description="Page number containing the table")
-    table_index: int = Field(
-        default=0, description="Index of table on page if multiple"
-    )
+    table_index: int = Field(default=0, description="Index of table on page if multiple")
 
 
 class SearchDocumentInput(BaseModel):
     """Input for searching document content."""
 
     query: str = Field(description="Text or pattern to search for")
-    context_chars: int = Field(
-        default=200, description="Characters of context around match"
-    )
+    context_chars: int = Field(default=200, description="Characters of context around match")
 
 
 @tool(args_schema=ReadSectionInput)
-async def read_document_section(
-    page_numbers: list[int], section_hint: Optional[str] = None
-) -> str:
+async def read_document_section(page_numbers: list[int], section_hint: Optional[str] = None) -> str:
     """Read text content from specific pages or sections of the document.
 
     Use this to get raw text from known locations in the document.
@@ -74,9 +68,7 @@ async def read_document_section(
 
 
 @tool(args_schema=OCRRegionInput)
-async def ocr_region(
-    page_number: int, bbox: Optional[list[float]] = None
-) -> str:
+async def ocr_region(page_number: int, bbox: Optional[list[float]] = None) -> str:
     """Perform OCR on a specific page or region of the document.
 
     Use this for scanned documents or when text extraction fails.
@@ -92,7 +84,13 @@ async def ocr_region(
     ocr = OCRService()
 
     image = await parser.get_page_image(page_number)
-    bbox_tuple = tuple(bbox) if bbox else None
+    bbox_tuple: tuple[float, float, float, float] | None = None
+    if bbox:
+        x1 = float(bbox[0])
+        y1 = float(bbox[1])
+        x2 = float(bbox[2])
+        y2 = float(bbox[3])
+        bbox_tuple = (x1, y1, x2, y2)
     return await ocr.extract_text(image, bbox_tuple)
 
 
@@ -110,6 +108,13 @@ async def extract_table(page_number: int, table_index: int = 0) -> dict:
         Dictionary with 'headers' and 'rows' keys
     """
     parser = DocumentParser.get_current()
+
+    parsed_tables = await parser.get_tables(page_number)
+    if parsed_tables:
+        if table_index >= len(parsed_tables):
+            return {"error": f"Only {len(parsed_tables)} tables found on page {page_number}"}
+        return parsed_tables[table_index]
+
     extractor = TableExtractor()
 
     page_content = await parser.read_pages([page_number])
